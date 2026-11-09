@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tic-Tac-Toe: Teach the AI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600;700&display=swap');
+
+  :root{
+    --bg: #FBF6EC;
+    --ink: #22261F;
+    --ink-soft: #6B6F63;
+    --line: #E9DFC6;
+    --panel: #FFFFFF;
+    --x-color: #1F8A6E;
+    --o-color: #E06B35;
+    --good: #2E9A5C;
+    --bad: #D9533A;
+    --accent: #F4B740;
+  }
+
+  *{ box-sizing: border-box; }
+  body{
+    margin:0; min-height:100vh;
+    background:
+      radial-gradient(circle at 15% 10%, #FFF1D6 0%, transparent 45%),
+      radial-gradient(circle at 85% 90%, #E4F3EA 0%, transparent 45%),
+      var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    padding: 32px 16px;
+  }
+  h1{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; font-size: 23px; margin: 0 0 4px;
+  }
+
+  .app{ width: 100%; max-width: 380px; }
+
+  .scoreboard{
+    display:flex; justify-content: space-between;
+    border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px 4px; margin-bottom: 18px; background: var(--panel);
+    box-shadow: 0 2px 0 var(--line);
+  }
+  .score{ flex:1; text-align:center; }
+  .score b{
+    display:block; font-family:'Space Grotesk', sans-serif;
+    font-size: 22px; font-weight:700;
+  }
+  .score span{ font-size: 12px; color: var(--ink-soft); }
+  .score.x b{ color: var(--x-color); }
+  .score.o b{ color: var(--o-color); }
+
+  .status{
+    text-align:center; font-size: 14px; font-weight:600;
+    color: var(--ink-soft); margin-bottom: 14px; min-height: 20px;
+  }
+
+  .board{
+    display:grid; grid-template-columns: repeat(3, 1fr);
+    gap: 7px; background: var(--line);
+    border-radius: 16px; padding: 7px; margin: 0 auto;
+    box-shadow: 0 3px 0 var(--line), 0 8px 20px -10px rgba(34,38,31,0.25);
+  }
+  .cell{
+    position: relative;
+    aspect-ratio: 1;
+    background: var(--panel);
+    border-radius: 11px;
+    display:flex; align-items:center; justify-content:center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 34px; font-weight: 700;
+    cursor: pointer;
+    transition: background .12s ease, transform .08s ease;
+  }
+  .cell:hover:not(.taken):not(.locked){ background: #FFF3DB; transform: scale(1.04); }
+  .cell.taken, .cell.locked{ cursor: default; }
+  .cell .mark{ animation: pop-in .18s ease; }
+  .cell .mark.X{ color: var(--x-color); }
+  .cell .mark.O{ color: var(--o-color); }
+  @keyframes pop-in{ from{ transform: scale(0.5); opacity:0; } to{ transform: scale(1); opacity:1; } }
+  .cell .think{
+    position:absolute; bottom: 5px; right: 6px;
+    font-size: 10px; font-weight: 700; color:#fff;
+    padding: 1px 5px; border-radius: 6px;
+  }
+
+  .controls{ text-align:center; margin-top: 18px; }
+  button{
+    font-family: 'Inter', sans-serif; font-weight: 700; font-size: 13px;
+    background: var(--ink); color: #fff; border:none;
+    padding: 9px 18px; border-radius: 10px; cursor: pointer;
+    transition: transform .08s ease, background .12s ease;
+  }
+  button:hover{ background: #3a3f31; transform: translateY(-1px); }
+  button:disabled{ opacity:.5; cursor: default; transform:none; }
+
+  .train-row{
+    display:flex; align-items:center; justify-content:center; gap: 8px;
+    margin-top: 10px;
+  }
+  .train-row button{ background: var(--accent); color: var(--ink); }
+  .train-row button:hover{ background: #e6a62f; }
+  .trained-count{
+    text-align:center; font-size: 11.5px; color: var(--ink-soft); margin-top: 6px;
+  }
+
+  .note{
+    text-align:center; font-size: 12px; color: var(--ink-soft);
+    margin-top: 14px; line-height: 1.5;
+  }
+
+  .confetti-row{
+    display:flex; align-items:center; justify-content:center; gap: 8px;
+    margin-top: 16px; font-size: 13px; font-weight: 700;
+  }
+  .confetti-row input[type=range]{ width: 150px; accent-color: var(--o-color); cursor: pointer; }
+  .confetti-label{
+    text-align:center; font-size: 12px; color: var(--ink-soft);
+    margin-top: 4px; min-height: 16px;
+  }
+
+  /* Each piece gets its own start / middle / end point via CSS variables,
+     so one shared animation produces a different curved path per piece. */
+  .confetti-piece{
+    position: fixed; top: 0; left: 0;
+    opacity: 0.95; border-radius: 2px; pointer-events:none; z-index: 999;
+    animation: confetti-fly 1.5s linear both; /* "both" keeps delayed pieces off-screen until they launch */
+  }
+  @keyframes confetti-fly{
+    0%  { transform: translate(var(--x0), var(--y0)) rotate(0deg); }
+    50% { transform: translate(var(--xm), var(--ym)) rotate(calc(var(--spin) * 0.5)); }
+    85% { opacity: 0.95; }
+    100%{ transform: translate(var(--x1), var(--y1)) rotate(var(--spin)); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Tic-Tac-Toe: Teach the AI</h1>
+  <p class="note" style="margin-top:0; text-align:left;">You're X and always go first. The AI is O and starts out knowing nothing.</p>
+
+  <div class="scoreboard">
+    <div class="score x"><b id="scoreX">0</b><span>You</span></div>
+    <div class="score"><b id="scoreDraw">0</b><span>Draws</span></div>
+    <div class="score o"><b id="scoreO">0</b><span>AI</span></div>
+  </div>
+
+  <div class="status" id="status">Your turn — pick a square</div>
+  <div class="board" id="board"></div>
+
+  <div class="controls">
+    <button id="newGameBtn">New game</button>
+    <div class="train-row">
+      <button id="trainBtn">⚡ Train vs itself</button>
+    </div>
+    <p class="trained-count" id="trainLock"></p>
+    <p class="trained-count" id="trainedCount"></p>
+
+    <div class="confetti-row">
+      <label for="confettiSlider">🎉 Win confetti</label>
+      <input type="range" id="confettiSlider" min="0" max="100" value="30">
+    </div>
+    <p class="confetti-label" id="confettiLabel"></p>
+  </div>
+
+  <p class="note">The AI keeps learning as you play, but forgets everything if you reload the page.</p>
+</div>
+
+<script>
+(function(){
+  // ----- Learning settings -----
+  const ALPHA = 0.5;         // learning rate
+  const GAMMA = 0.95;        // how much future outcomes matter (slightly prefers quicker wins)
+  const WIN_REWARD = 1;
+  const DRAW_REWARD = 0;     // a draw is "neutral": better than losing, worse than winning
+  // (There's no LOSS_REWARD any more: a loss is learned by looking back from the
+  //  opponent's winning move, see learnFromGame below.)
+  const EPS_START = 0.9;
+  const EPS_MIN = 0.05;      // never stop exploring completely
+  const EPS_DECAY = 0.999;    // applied once per finished game
+  const THINK_DELAY = 700;   // ms the AI "thinks" before moving
+  const GAMES_BEFORE_TRAINING = 3; // finished human games needed to unlock each training session
+  const TRAIN_GAMES = 300;         // self-play games per training session (fixed, not user-editable)
+  const CONFETTI_MIN = 8;          // pieces at the lowest non-zero slider setting
+  const CONFETTI_MAX = 2500;       // pieces at the top setting (ridiculous on purpose)
+
+  // ----- Rule-based overrides (for testing against pure Q-learning) -----
+  // When true, these short-circuit the learned move choice with a guaranteed
+  // rule. The AI still "learns" from whatever move it ends up making either way.
+  const ALWAYS_WIN_IF_POSSIBLE = false;  // if O can win this turn, always take it
+  const ALWAYS_BLOCK_LOSS = false;       // if X would win next turn, always block it
+
+  // ----- State -----
+  let Q = {};                // canonical board key -> [9 numbers]
+  let board = Array(9).fill(null);
+  let gameLog = [];           // every move played this game (both sides), in canonical terms
+  let epsilon = EPS_START;
+  let scores = { x: 0, o: 0, draw: 0 };
+  let gameOver = false;
+  let locked = false;         // true while AI is "thinking" or it's not human's turn
+  let gamesTrained = 0;       // total self-play games run via the Train button
+  let gamesVsHuman = 0;       // total finished games against the user
+  let gamesSinceTraining = 0; // finished human games since the last training session
+
+  const boardEl = document.getElementById('board');
+  const statusEl = document.getElementById('status');
+  const trainedCountEl = document.getElementById('trainedCount');
+  const trainLockEl = document.getElementById('trainLock');
+  const confettiSlider = document.getElementById('confettiSlider');
+  const confettiLabelEl = document.getElementById('confettiLabel');
+  const trainBtn = document.getElementById('trainBtn');
+  const newGameBtn = document.getElementById('newGameBtn');
+
+  function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+  // ----- Board geometry & symmetry -----
+  function rc(i){ return [Math.floor(i/3), i%3]; }
+  function idx(r,c){ return r*3+c; }
+
+  // The 8 symmetries of a square (identity, 3 rotations, 4 reflections)
+  const TRANSFORM_FNS = [
+    (r,c) => [r, c],           // identity
+    (r,c) => [c, 2-r],         // rotate 90
+    (r,c) => [2-r, 2-c],       // rotate 180
+    (r,c) => [2-c, r],         // rotate 270
+    (r,c) => [r, 2-c],         // flip horizontal
+    (r,c) => [2-r, c],         // flip vertical
+    (r,c) => [c, r],           // flip diagonal
+    (r,c) => [2-c, 2-r],       // flip anti-diagonal
+  ];
+
+  // FORWARD[k][i] = position that square i moves to under transform k
+  // INVERSE[k][j] = position that ends up at j (inverse permutation)
+  const FORWARD = [];
+  const INVERSE = [];
+  for(let k=0;k<8;k++){
+    const fwd = Array(9).fill(0);
+    for(let i=0;i<9;i++){
+      const [r,c] = rc(i);
+      const [r2,c2] = TRANSFORM_FNS[k](r,c);
+      fwd[i] = idx(r2,c2);
+    }
+    const inv = Array(9).fill(0);
+    for(let i=0;i<9;i++) inv[fwd[i]] = i;
+    FORWARD.push(fwd);
+    INVERSE.push(inv);
+  }
+
+  // Find the canonical (smallest-string) version of a board across all 8 symmetries.
+  function canonicalize(b){
+    let bestKey = null, bestK = 0;
+    for(let k=0;k<8;k++){
+      const t = Array(9).fill(null);
+      for(let i=0;i<9;i++) t[FORWARD[k][i]] = b[i];
+      const key = t.map(v=>v||'-').join('');
+      if(bestKey === null || key < bestKey){ bestKey = key; bestK = k; }
+    }
+    return { key: bestKey, k: bestK };
+  }
+
+  function getQ(key){
+    if(!Q[key]) Q[key] = Array(9).fill(0);
+    return Q[key];
+  }
+
+  // ----- Rules -----
+  const LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  function checkResult(b){
+    for(const [a,c,d] of LINES){
+      if(b[a] && b[a]===b[c] && b[a]===b[d]) return b[a];
+    }
+    if(b.every(v=>v)) return 'draw';
+    return null;
+  }
+  function emptyIndices(b){ const out=[]; for(let i=0;i<9;i++) if(!b[i]) out.push(i); return out; }
+
+  // Returns the index of a move that would make `player` win right now, or null if none exists.
+  function findImmediateWin(b, player){
+    for(let i=0;i<9;i++){
+      if(b[i]) continue;
+      const copy = b.slice();
+      copy[i] = player;
+      if(checkResult(copy) === player) return i;
+    }
+    return null;
+  }
+
+  // ----- Learning core -----
+  // Remember a move BEFORE it is placed on the board.
+  function logMove(log, b, realIndex){
+    const { key, k } = canonicalize(b);
+    log.push({
+      key,
+      action: FORWARD[k][realIndex],
+      valid: emptyIndices(b).map(i => FORWARD[k][i]),
+    });
+  }
+
+  // Called once when a game ends. Walks BACKWARDS from the result:
+  //  - the last move scored a win (or a draw if it filled the board)
+  //  - every earlier move is scored by how it left the opponent:
+  //    if the opponent's best reply is great for them, this move was bad for us.
+  // Because the table says "how good is this move for whoever's turn it is",
+  // one table learns from both sides of every game.
+  function learnFromGame(log, result){
+    for(let t = log.length - 1; t >= 0; t--){
+      const step = log[t];
+      let target;
+      if(t === log.length - 1){
+        target = result === 'draw' ? DRAW_REWARD : WIN_REWARD;
+      } else {
+        const next = log[t + 1];
+        const nextQ = getQ(next.key);
+        let best = -Infinity;
+        for(const j of next.valid) if(nextQ[j] > best) best = nextQ[j];
+        target = -GAMMA * best;
+      }
+      const qRow = getQ(step.key);
+      qRow[step.action] += ALPHA * (target - qRow[step.action]);
+    }
+  }
+
+  function chooseAction(canonKey, canonValid){
+    if(Math.random() < epsilon){
+      return canonValid[Math.floor(Math.random()*canonValid.length)];
+    }
+    const qRow = getQ(canonKey);
+    let bestVal = -Infinity;
+    for(const j of canonValid) if(qRow[j] > bestVal) bestVal = qRow[j];
+    // pick randomly among equally good moves so the AI doesn't always favour the same square
+    const ties = canonValid.filter(j => qRow[j] === bestVal);
+    return ties[Math.floor(Math.random()*ties.length)];
+  }
+
+  // ----- Rendering -----
+  function render(showThinking){
+    boardEl.innerHTML = '';
+    let canonInfo = null, qRow = null;
+    if(showThinking){
+      canonInfo = canonicalize(board);
+      qRow = getQ(canonInfo.key);
+    }
+    for(let i=0;i<9;i++){
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (board[i] ? ' taken' : '') + ((gameOver || locked || board[i]) ? ' locked' : '');
+      if(board[i]){
+        const m = document.createElement('span');
+        m.className = 'mark ' + board[i];
+        m.textContent = board[i];
+        cell.appendChild(m);
+      } else if(showThinking){
+        const j = FORWARD[canonInfo.k][i];
+        const pct = Math.round(Math.max(0, Math.min(100, (qRow[j]+1)/2*100)));
+        const badge = document.createElement('span');
+        badge.className = 'think';
+        badge.textContent = pct;
+        badge.style.background = pct >= 60 ? 'var(--good)' : pct <= 40 ? 'var(--bad)' : '#B08B2E';
+        cell.appendChild(badge);
+      }
+      if(!board[i] && !gameOver && !locked){
+        cell.addEventListener('click', () => handleHumanMove(i));
+      }
+      boardEl.appendChild(cell);
+    }
+    document.getElementById('scoreX').textContent = scores.x;
+    document.getElementById('scoreO').textContent = scores.o;
+    document.getElementById('scoreDraw').textContent = scores.draw;
+  }
+
+  // ----- Game flow -----
+  function handleHumanMove(i){
+    if(gameOver || locked || board[i]) return;
+    logMove(gameLog, board, i);
+    board[i] = 'X';
+    const result = checkResult(board);
+    if(result){
+      learnFromGame(gameLog, result);
+      return finishGame(result);
+    }
+    locked = true;
+    statusEl.textContent = "AI is thinking…";
+    render(true); // show the AI's current thinking on the board it's about to act on
+    setTimeout(aiMove, THINK_DELAY);
+  }
+
+  function aiMove(){
+    const { key, k } = canonicalize(board);
+    const realValid = emptyIndices(board);
+    const canonValid = realValid.map(i => FORWARD[k][i]);
+
+    // Rule overrides take priority over the learned policy, in this order:
+    // 1. take a winning move if one exists, 2. otherwise block the human's winning move.
+    let realAction = null;
+    if(ALWAYS_WIN_IF_POSSIBLE) realAction = findImmediateWin(board, 'O');
+    if(realAction === null && ALWAYS_BLOCK_LOSS) realAction = findImmediateWin(board, 'X');
+
+    let action;
+    if(realAction !== null){
+      action = FORWARD[k][realAction]; // convert back to canonical index so learning still applies
+    } else {
+      action = chooseAction(key, canonValid);
+      realAction = INVERSE[k][action];
+    }
+    logMove(gameLog, board, realAction);
+    board[realAction] = 'O';
+
+    const result = checkResult(board);
+    locked = false;
+    if(result){
+      learnFromGame(gameLog, result);
+      return finishGame(result);
+    }
+    statusEl.textContent = "Your turn — pick a square";
+    render(false);
+  }
+
+  function finishGame(result){
+    gameOver = true;
+    if(result === 'X'){ scores.x++; statusEl.textContent = "You win! 🎉"; launchConfetti(); }
+    else if(result === 'O'){ scores.o++; statusEl.textContent = "The AI wins this one. 🤖"; }
+    else { scores.draw++; statusEl.textContent = "It's a draw. 🤝"; }
+    epsilon = Math.max(EPS_MIN, epsilon * EPS_DECAY);
+    gamesSinceTraining++;
+    gamesVsHuman++;
+    updateGamesPlayed();
+    updateTrainLock();
+    render(false);
+  }
+
+  function updateGamesPlayed(){
+    const total = gamesVsHuman + gamesTrained;
+    trainedCountEl.textContent = `AI has played ${total} game${total===1?'':'s'} so far `
+      + `(${gamesVsHuman} vs you, ${gamesTrained} practice)`;
+  }
+
+  // ----- Training lock -----
+  // The Train button only unlocks after the user has finished enough real games.
+  function gamesUntilTraining(){
+    return Math.max(0, GAMES_BEFORE_TRAINING - gamesSinceTraining);
+  }
+  function updateTrainLock(){
+    const remaining = gamesUntilTraining();
+    trainBtn.disabled = locked || remaining > 0;
+    trainLockEl.textContent = remaining > 0
+      ? `🔒 Play ${remaining} more game${remaining===1?'':'s'} to unlock training`
+      : '';
+  }
+
+  // ----- Confetti -----
+  // Slider level (0-100) -> number of pieces, on an exponential curve so each
+  // notch feels like a similar-sized jump: 0 = none, 1 = a sprinkle, 100 = chaos.
+  function confettiCount(level){
+    if(level <= 0) return 0;
+    return Math.round(CONFETTI_MIN * Math.pow(CONFETTI_MAX / CONFETTI_MIN, level / 100));
+  }
+
+  // A short, silly description of the current slider level.
+  function confettiLabel(level, count){
+    // TODO(human)
+    return `${count} pieces`;
+  }
+
+  function updateConfettiLabel(){
+    const level = +confettiSlider.value;
+    confettiLabelEl.textContent = confettiLabel(level, confettiCount(level));
+  }
+
+  function launchConfetti(){
+    const level = +confettiSlider.value;
+    const count = confettiCount(level);
+    if(count === 0) return;
+    const colors = ['#1F8A6E', '#E06B35', '#F4B740', '#2E9A5C', '#5C86B0', '#C266A8'];
+    const chaos = level / 100;                 // 0 = gentle shower, 1 = total mayhem
+    const sideChance = chaos * 0.8;            // chance a piece enters from the sides/bottom instead of the top
+    const spread = 0.25 + chaos * 2.5;         // more confetti = a longer downpour, not one blob
+    const maxSize = 12 + chaos * 34;           // pieces grow up to ~46px
+    const slowest = 2.5 - chaos * 1.5;         // and fly faster (2.5s -> 1s at the top end)
+    const fastest = 1.2 - chaos * 0.8;         // (1.2s -> 0.4s)
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const frag = document.createDocumentFragment();
+    for(let i=0;i<count;i++){
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      const size = rand(6, maxSize);
+      piece.style.width = size + 'px';
+      piece.style.height = (Math.random() < 0.3 ? size : size * rand(1.3, 2)) + 'px';
+      if(Math.random() < 0.2) piece.style.borderRadius = '50%';
+      piece.style.background = colors[Math.floor(Math.random()*colors.length)];
+
+      // Pick an edge to enter from, then an exit point roughly on the far side.
+      let x0, y0, x1, y1;
+      const edge = Math.random() < sideChance ? 1 + Math.floor(Math.random() * 3) : 0;
+      if(edge === 0){        // top -> falls down
+        x0 = rand(0, 100);  y0 = -10;  x1 = x0 + rand(-40, 40) * (0.3 + chaos); y1 = 110;
+      } else if(edge === 1){ // left -> flies right
+        x0 = -10; y0 = rand(0, 100);   x1 = 110; y1 = rand(-10, 110);
+      } else if(edge === 2){ // right -> flies left
+        x0 = 110; y0 = rand(0, 100);   x1 = -10; y1 = rand(-10, 110);
+      } else {               // bottom -> launched upward
+        x0 = rand(0, 100);  y0 = 110;  x1 = rand(-10, 110); y1 = -10;
+      }
+      // A random midpoint bends the path into a curve; more chaos = wilder curves.
+      const wobble = 15 + chaos * 35;
+      const xm = (x0 + x1) / 2 + rand(-wobble, wobble);
+      const ym = (y0 + y1) / 2 + rand(-wobble, wobble);
+      piece.style.setProperty('--x0', x0 + 'vw'); piece.style.setProperty('--y0', y0 + 'vh');
+      piece.style.setProperty('--xm', xm + 'vw'); piece.style.setProperty('--ym', ym + 'vh');
+      piece.style.setProperty('--x1', x1 + 'vw'); piece.style.setProperty('--y1', y1 + 'vh');
+      piece.style.setProperty('--spin', (Math.random() < 0.5 ? -1 : 1) * rand(240, 840 + chaos * 1200) + 'deg');
+
+      piece.style.animationDuration = rand(fastest, slowest) + 's';
+      piece.style.animationDelay = (Math.random() * spread) + 's';
+      piece.addEventListener('animationend', () => piece.remove());
+      frag.appendChild(piece);
+    }
+    document.body.appendChild(frag);
+  }
+
+  // ----- Self-play training -----
+  // Plays a full game with the SAME learned policy on both sides (plus the rule
+  // overrides above applied to whoever's turn it is) — not a random opponent.
+  // Since a given board layout always implies the same player to move, one shared
+  // Q-table can represent "how good is this move for whoever's turn it is", so
+  // both sides learn from, and contribute to, every single game.
+  // If recordMoves is true, the move sequence is returned so it can be animated.
+  function simulateSelfPlayGame(recordMoves){
+    let b = Array(9).fill(null);
+    const log = [];
+    let turn = 'X';
+    const moves = recordMoves ? [] : null;
+
+    while(true){
+      const mark = turn;
+      const oppMark = mark === 'X' ? 'O' : 'X';
+      const { key, k } = canonicalize(b);
+      const canonValid = emptyIndices(b).map(i => FORWARD[k][i]);
+
+      let realAction = null;
+      if(ALWAYS_WIN_IF_POSSIBLE) realAction = findImmediateWin(b, mark);
+      if(realAction === null && ALWAYS_BLOCK_LOSS) realAction = findImmediateWin(b, oppMark);
+
+      if(realAction === null){
+        const action = chooseAction(key, canonValid);
+        realAction = INVERSE[k][action];
+      }
+      logMove(log, b, realAction);
+      b[realAction] = mark;
+      if(moves) moves.push({ i: realAction, mark });
+
+      const res = checkResult(b);
+      if(res){
+        learnFromGame(log, res);
+        break;
+      }
+      turn = oppMark;
+    }
+    epsilon = Math.max(EPS_MIN, epsilon * EPS_DECAY);
+    return moves;
+  }
+
+  function renderTrainingFrame(b){
+    boardEl.innerHTML = '';
+    for(let i=0;i<9;i++){
+      const cell = document.createElement('div');
+      cell.className = 'cell taken locked';
+      if(b[i]){
+        const m = document.createElement('span');
+        m.className = 'mark ' + b[i];
+        m.textContent = b[i];
+        cell.appendChild(m);
+      }
+      boardEl.appendChild(cell);
+    }
+  }
+
+  async function playTrainingAnimation(games){
+    for(const moves of games){
+      let b = Array(9).fill(null);
+      renderTrainingFrame(b);
+      await sleep(110);
+      for(const mv of moves){
+        b[mv.i] = mv.mark;
+        renderTrainingFrame(b);
+        await sleep(85);
+      }
+      await sleep(200);
+    }
+  }
+
+  async function trainGames(n){
+    if(locked || gamesUntilTraining() > 0) return;
+    const savedBoard = board.slice();
+    const savedGameOver = gameOver;
+    const savedStatus = statusEl.textContent;
+
+    locked = true;
+    trainBtn.disabled = true;
+    newGameBtn.disabled = true;
+    statusEl.textContent = `Training… watching a few practice games ⚡`;
+
+    const maxAnimated = Math.min(n, 6);
+    const animatedGames = [];
+    for(let i=0;i<n;i++){
+      const moves = simulateSelfPlayGame(i < maxAnimated);
+      if(i < maxAnimated) animatedGames.push(moves);
+    }
+
+    gamesTrained += n;
+    gamesSinceTraining = 0;
+    updateGamesPlayed();
+
+    await playTrainingAnimation(animatedGames);
+
+    board = savedBoard;
+    gameOver = savedGameOver;
+    statusEl.textContent = savedStatus;
+    locked = false;
+    updateTrainLock();
+    newGameBtn.disabled = false;
+    render(false);
+  }
+
+  function newGame(){
+    board = Array(9).fill(null);
+    gameLog = [];
+    gameOver = false;
+    locked = false;
+    statusEl.textContent = "Your turn — pick a square";
+    render(false);
+  }
+
+  newGameBtn.addEventListener('click', newGame);
+  trainBtn.addEventListener('click', () => trainGames(TRAIN_GAMES));
+  trainBtn.textContent = `⚡ Train vs itself (${TRAIN_GAMES} games)`;
+  confettiSlider.addEventListener('input', updateConfettiLabel);
+  newGame();
+  updateConfettiLabel();
+  updateGamesPlayed();
+  updateTrainLock();
+})();
+</script>
+</body>
+</html>
