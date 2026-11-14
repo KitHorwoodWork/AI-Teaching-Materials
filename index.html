@@ -181,7 +181,7 @@
   //  opponent's winning move, see learnFromGame below.)
   const EPS_START = 0.9;
   const EPS_MIN = 0.05;      // never stop exploring completely
-  const EPS_DECAY = 0.999;    // applied once per finished game
+  const EPS_DECAY = 0.99;    // applied once per finished game
   const THINK_DELAY = 700;   // ms the AI "thinks" before moving
   const GAMES_BEFORE_TRAINING = 3; // finished human games needed to unlock each training session
   const TRAIN_GAMES = 300;         // self-play games per training session (fixed, not user-editable)
